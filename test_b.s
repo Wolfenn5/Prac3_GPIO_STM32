@@ -20,25 +20,25 @@ delay:
 # for (i = 0; i < ms; i++)
         mov     r0, #0 @ i = 0;
         str     r0, [r7, #8]
-        b       F3
+        b       L0
 # for (j = 0; j < tick; j++)
-F4:     mov     r0, #0 @ j = 0;
+L3:     mov     r0, #0 @ j = 0;
         str     r0, [r7, #12]
-        b       F5
-F6:     ldr     r0, [r7, #12] @ j++;
+        b       L1
+L2:     ldr     r0, [r7, #12] @ j++;
         add     r0, #1
         str     r0, [r7, #12]
-F5:     ldr     r0, [r7, #12] @ j < ticks;
+L1:     ldr     r0, [r7, #12] @ j < ticks;
         ldr     r1, [r7, #16]
         cmp     r0, r1
-        blt     F6
+        blt     L2
         ldr     r0, [r7, #8] @ i++;
         add     r0, #1
         str     r0, [r7, #8]
-F3:     ldr     r0, [r7, #8] @ i < ms
+L0:     ldr     r0, [r7, #8] @ i < ms
         ldr     r1, [r7]
         cmp     r0, r1
-        blt     F4
+        blt     L3
         # Epilogue
         adds    r7, r7, #28
         mov	    sp, r7
@@ -78,18 +78,20 @@ reset:
 # Esta funcion lee que se esta presionado (boton PA4 incremento. PA0 Decremento o ambos para reiniciar)
 read_button_input:
         @Prologo
-	push	{r7} @ respalda 
-	sub 	sp, sp, #4                       @ revisar, deberia respaldar un marco de 16 bytes con #12
+	push	{r7} @ respalda r7
+	sub 	sp, sp, #12 @ respalda un marco de 16 bytes
 	add	r7, sp, #0 @ actualiza r7
 
 	str 	r0, [r7] @ respalda el argumento recibido (que boton se presiona o ambos)
-        ldr     r0, =GPIOA_IDR
-	ldr 	r0, [r7]
-	and	r1, r1, r0
+        ldr     r1, =GPIOA_IDR @ carga la direccion de GPIOA_IDR a r1
+	ldr 	r0, [r7] @ carga en r0 el argumento recibido desde loop
+	and	r1, r1, r0 @ aplica una and del valor que tiene GPIOA_IDR (push button) con el valor recibido desde loop
 	cmp	r1, r0
-	beq	.L0
+	beq	L4 @ si los valores coinciden (hay al menos un boton presionado se manda ese valor como valor de retorno)
+        @ si no se presiona ningun boton se manda un 0 indicando que no se lee nada
 	mov	r0, #0
-.L0:
+L4:
+        @str     r0, [r7]
 	adds 	r7, r7, #4
 	mov	sp, r7
 	pop 	{r7}
@@ -99,7 +101,7 @@ read_button_input:
 # Esta funcion realiza el debouncing si se presiona un boton o ambos
 is_button_pressed:
 	push 	{r7, lr}
-	sub	sp, sp, #16
+	sub	sp, sp, #24
 	add	r7, sp, #0
         
 	str 	r0, [r7, #4]
@@ -108,22 +110,24 @@ is_button_pressed:
 	bl	read_button_input
 	ldr 	r3, [r7, #4]
 	cmp	r0, r3
-	beq	L1
+	beq	L5 @ Si un boton o ambos se presionan, entra al ciclo for
+        @ si no se presiona ningun boton retorna false y acaba la funcion
 	mov	r0, #0
-	adds	r7, r7, #16
+        @ Epilogo
+	adds	r7, r7, #24
 	mov	sp, r7
 	pop 	{r7}
 	pop 	{lr}
 	bx	lr
-L1:
+L5:
 	# counter = 0
 	mov	r3, #0
 	str	r3, [r7, #8]
 	# for (int i = 0, i < 10, i++) 
 	mov     r3, #0 @ j = 0;
         str     r3, [r7, #12]
-        b       L2
-L5:     
+        b       L6
+L9:     
 	# wait 5 ms
 	mov 	r0, #50
 	bl   	delay
@@ -132,35 +136,35 @@ L5:
 	bl	read_button_input
 	ldr 	r3, [r7, #4]
 	cmp	r0, r3
-	beq 	L3
+	beq 	L7
 	mov 	r3, #0
 	str	r3, [r7, #8]
-L3:		
+L7:		
 	# counter = counter + 1
 	ldr 	r3, [r7, #8]
 	add	r3, #1
 	str 	r3, [r7, #8]
 	ldr 	r3, [r7, #8]
 	cmp	r3, #4
-	blt	L4
+	blt	L8
 	ldr	r0, [r7, #4]
-	adds	r7, r7, #16
+	adds	r7, r7, #24
 	mov	sp, r7
 	pop 	{r7}
 	pop 	{lr}
 	bx	lr
-L4:
+L8:
 	ldr     r3, [r7, #12] @ j++;
         add     r3, #1
         str     r3, [r7, #12]
-L2:     
+L6:     
 	ldr     r3, [r7, #12] @ j < 10;
         cmp     r3, #10
-        blt     L5
+        blt     L9
 
 	# Epilogo
 	mov 	r0, #0
-	adds	r7, r7, #16
+	adds	r7, r7, #24
 	mov	sp, r7
 	pop 	{r7}
 	pop 	{lr}
@@ -224,16 +228,16 @@ loop:
         mov     r0, 0x11 @ carga un valor de 17 (0001 0001) para indicar que se quiere leer los bits 5 y 0 (PA4, PA0; 2 push button)
         bl      is_button_pressed 
         cmp     r0, 0x11
-        bne     L0 @ Si ambos no estan presionados, ver si alguno esta presionado
+        bne     L10 @ Si ambos no estan presionados, ver si alguno esta presionado
         bl      reset
         str     r0, [r7, #4] @ guarda el estado de los leds dentro del marco
-L0:
+L10:
 @ Verificar si algun boton se presiona 
 @ Si se presiona el boton del pin PA4 (incremento)
         mov     r0, 0x10 @ carga un valor de 16 (0001 0000) para indicar que se quiere leer el bit 5 (PA4 push button para incremento)
         bl      is_button_pressed 
         cmp     r0, 0x10
-        bne     L1 @ si no se presiona, ver si el pin PB6 se presiona
+        bne     L11 @ si no se presiona, ver si el pin PB6 se presiona
         @ si se presiona, entonces incrementa 
         ldr     r1, =GPIOB_ODR @ carga la direccion de GPIOB_ODR a r1
         ldr     r2, [r7, #4] @ carga en r2 el valor actual del contador 
@@ -243,12 +247,12 @@ L0:
         lsl     r3, r3, #5 @ desplaza 5 unidades a la izquierda por el desfase donde se ubican los leds (el primer led se ubica en la 5ta posicion PA4)
         str     r3, [r1] @ almacena el nuevo valor de los LEDS (GPIOA_ODR) +1        
 
-L1:     
+L11:     
 @ Si se presiona el boton del pin PA0 (decremento)
         mov     r0, 0x01 @ carga un valor de 1 (0001) para indicar que se quiere leer el bit 0 (PA0 push button para decremento)
         bl      is_button_pressed
         cmp     r0, 0x01
-        bne     L2 @ Si no se presiona, vuelve a loop
+        bne     L12 @ Si no se presiona, vuelve a loop
         @ si se presiona, entonces decrementa 
         ldr     r1, =GPIOB_ODR @ carga la direccion de GPIOA_IDR a r1
         ldr     r2, [r7, #4] @ carga en r2 el valor actual del contador
@@ -258,5 +262,5 @@ L1:
         lsl     r3, r3, #5 @ desplaza 5 unidades a la izquierda por el desfase donde se ubican los leds (el primer led se ubica en la 5ta posicion PA4)
         str     r3, [r1] @ almacena el nuevo valor de los LEDS (GPIOA_ODR) -1       
 
-L2:
+L12:
         b       loop
