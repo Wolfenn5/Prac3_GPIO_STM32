@@ -8,7 +8,7 @@
 
 
 
-delay:
+wait_ms:
         # Prologue
         push    {r7} @ backs r7 up
         sub     sp, sp, #28 @ reserves a 32-byte function frame
@@ -95,11 +95,13 @@ L4:
 	bx	lr
 
 
+
+
 # Esta funcion realiza el debouncing si se presiona un boton o ambos
 is_button_pressed:
         @ Prologo
 	push 	{r7, lr} @ respalda r7 y lr
-	sub	sp, sp, #16 @ respalda un marco de  bytes
+	sub	sp, sp, #24 @ respalda un marco de 32 bytes
 	add	r7, sp, #0 @ actualiza r7
         
 	str 	r0, [r7, #4] @ respalda el argumento recibido desde loop
@@ -114,7 +116,7 @@ is_button_pressed:
         @ si no se presiona ningun boton (el valor recibido desde read_button_input es 0) sale de la funcion y devuelve 0 (false)
         @ Epilogo
 	mov	r0, #0 @ return 0
-	adds	r7, r7, #16
+	adds	r7, r7, #24
 	mov	sp, r7 
 	pop 	{r7, lr}
 	bx	lr
@@ -128,8 +130,8 @@ L5:
         b       L6
 L9:     
 @ wait 5 ms
-	mov 	r0, #50 @ 5ms a delay
-	bl   	delay
+	mov 	r0, #50 @ 5ms a delay (wait_ms)
+	bl   	wait_ms
 @ read button input
 @ if (button is not pressed)
 @    counter = 0
@@ -153,7 +155,7 @@ L7:
 	blt	L8 @ si counter < 4 sigue dentro del ciclo
 	ldr	r0, [r7, #4] @ carga el valor de counter en r0 
         @ Epilogo
-	adds	r7, r7, #16
+	adds	r7, r7, #24
 	mov	sp, r7
 	pop 	{r7}
 	pop 	{lr}
@@ -169,7 +171,7 @@ L6:
 @ return false
 	@ Epilogo
 	mov 	r0, #0 @ return 0
-	adds	r7, r7, #16
+	adds	r7, r7, #24
 	mov	sp, r7
 	pop 	{r7}
 	pop 	{lr}
